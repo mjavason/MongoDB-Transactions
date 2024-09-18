@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import morgan from 'morgan';
 import { setupSwagger } from './swagger.config';
 import { connectToDatabase, ProfileModel, UserModel } from './database.config';
+import { startSession } from 'mongoose';
 
 //#region App Setup
 const app = express();
@@ -53,20 +54,37 @@ setupSwagger(app, BASE_URL);
  *         description: Internal server error
  */
 app.post('/user', async (req: Request, res: Response) => {
+  const session = await startSession();
+  session.startTransaction();
+
   try {
     const { name, bio, email } = req.body;
+    const profile = await ProfileModel.create([{ bio }], { session });
+    console.log(profile);
 
-    const profile = await ProfileModel.create({ bio });
+    const isDuplicate = await UserModel.findOne({ email });
+    if (isDuplicate) {
+      await session.abortTransaction();
+      session.endSession(); // Always end the session
+      
+      return res
+        .status(403)
+        .send({ success: false, message: 'Email already exists' });
+    }
+
     const user = await UserModel.create({
       name,
       email,
-      profile: profile.id,
+      profile: profile[0].id,
     });
 
     return res
       .status(201)
       .json({ success: true, message: 'Successful', data: user });
   } catch (error: any) {
+    await session.abortTransaction();
+    session.endSession(); // Always end the session
+
     return res.status(500).json({ error: error.message });
   }
 });
@@ -223,7 +241,8 @@ app.delete('/user/:id', async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
-}); //#endregion
+});
+//#endregion
 
 //#region Server Setup
 
