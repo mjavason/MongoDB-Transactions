@@ -1,6 +1,6 @@
 # MongoDB-Transactions
 
-Sample application of mongoDB transactions.
+Sample application of mongoDB transactions. A transaction is used in user registration to revoke everything once a user email already exists.
 
 **Prerequisites**
 
